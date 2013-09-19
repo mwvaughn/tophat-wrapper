@@ -17,23 +17,30 @@ use constant SAMTOOLSP  => '/usr/local2/samtools-0.1.18/';
 report_input_stack();
 
 my (@file_query, $database_path, $user_database_path, $annotation_path, 
-$user_annotation_path, $file_names, $root_names, @file_query2,$together);
+$user_annotation_path, $file_names, $root_names, @file_query2,$together,$colorspace);
 
 my $version   = '2.0.5';
 my $btversion = '2.0.0';
 
 GetOptions( "file_query=s"      => \@file_query,
-	    "file_query2=s"     => \@file_query2,
-	    "database=s"        => \$database_path,
-	    "user_database=s"   => \$user_database_path,
-            "annotation=s"      => \$annotation_path,
-            "user_annotation=s" => \$user_annotation_path,
-	    "file_names=s"      => \$file_names,
-	    "root_names=s"      => \$root_names,
-            "tophat_version=s"  => \$version,
-	    "bowtie_version=s"  => \$btversion,
-	    "align_reads=s"     => \$together
-	    );
+			"file_query2=s"     => \@file_query2,
+			"database=s"        => \$database_path,
+			"user_database=s"   => \$user_database_path,
+			"annotation=s"      => \$annotation_path,
+			"user_annotation=s" => \$user_annotation_path,
+			"file_names=s"      => \$file_names,
+			"root_names=s"      => \$root_names,
+			"tophat_version=s"  => \$version,
+			"bowtie_version=s"  => \$btversion,
+			"align_reads=s"     => \$together,
+			"usecolorspace"		=> \$colorspace
+);
+
+# Enabling colorspace support
+# Die if bowtie version is > 2 and we have specified colorspace
+if (($colorspace) and ($btversion =~ /^2/)) {
+	die "You have requested to align in colorspace but asked to use Bowtie 2.x. Please resubmit requesting usage of Bowtie 0.12.7";
+}
 
 # sanity check for input data
 my $pe;
@@ -86,7 +93,13 @@ if ($user_database_path) {
       $new_path =~ s/$name\.\S+$/$name\.fa/;
       system "cp $database_path $new_path";
   }
-  system $bowtiep . " $database_path $name";
+  
+  # Enable bowtie-build to index in colorspace
+  my $btidxarg = "";
+  if ($colorspace) {
+  	$btidxarg = "--color "
+  }
+  system $bowtiep . "$btidxarg $database_path $name";
   $database_path = $name;
 }
 if ($user_annotation_path) {
@@ -146,8 +159,14 @@ for my $query_file (@file_query) {
 
     my $app  = $tophatp.'tophat';
     if ($annotation_path) {
-	$TOPHAT_ARGS .= " -G $annotation_path";
+		$TOPHAT_ARGS .= " -G $annotation_path";
     }
+    
+    # Enable colorspace TopHat query
+    if ($colorspace) {
+    	$TOPHAT_ARGS .= " --color"
+    }
+    
     $second_file ||= '';
     my $align_command = "$app $TOPHAT_ARGS $database_path $query_file $second_file ";
     
